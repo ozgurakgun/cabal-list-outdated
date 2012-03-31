@@ -6,3 +6,5 @@ To install: download, cd, cabal install.
 Usage: cabal list --installed | cabal-list-outdated
 
 It is probably a good idea to run "cabal update" first.
+
+[1] http://www.haskell.org/haskellwiki/Cabal-Install
