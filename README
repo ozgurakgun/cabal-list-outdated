@@ -1,0 +1,8 @@
+cabal-install[1] doesn't have an option to generate a list of outdated packages.
+This simple tool does that.
+
+To install: download, cd, cabal install.
+
+Usage: cabal list --installed | cabal-list-outdated
+
+It is probably a good idea to run "cabal update" first.
