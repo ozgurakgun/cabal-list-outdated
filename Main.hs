@@ -41,7 +41,8 @@ data Package = Package { name :: String
     deriving (Eq, Ord)
 
 instance Show Package where
-    show (Package n a is) = n ++ ": version " ++ show a ++ " is available. You have " ++ show is ++ "."
+    show (Package _ Nothing  _ ) = error "showing a Package with availableVersion = Nothing"
+    show (Package n (Just a) is) = n ++ ": version " ++ show a ++ " is available. You have " ++ show is ++ "."
 
 parseSkipFinish :: Parser f -> Parser s -> Parser a -> Parser [a]
 parseSkipFinish f s a =  (f *> return [])
@@ -71,7 +72,7 @@ main = interact $ \ s ->
             Right ps -> unlines $ map show
                                 $ filter (\ p ->
                                             case availableVersion p of
-                                                Nothing -> True
+                                                Nothing -> False
                                                 Just av -> av > last (installedVersions p)
                                          )
                                   ps
