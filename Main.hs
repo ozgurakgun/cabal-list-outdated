@@ -35,7 +35,7 @@ pVersion = Version <$> (try (char '(' *> ints <* char ')') <|> ints)
 
 
 data Package = Package { name :: String
-                       , availableVersion :: Version
+                       , availableVersion :: Maybe Version
                        , installedVersions :: [Version]
                        }
     deriving (Eq, Ord)
@@ -52,13 +52,16 @@ skipOr :: Parser b -> Parser a -> Parser a
 skipOr skip p = try p <|> (skip *> skipOr skip p)
 
 pPackage :: Parser Package
-pPackage = Package <$> (string "* " *> many1 (alphaNum <|> char '-'))
-                   <*> skipOr anyChar (string "Default available version: " *> pVersion)
-                   <*> skipOr anyChar (string "Installed versions: " *> pVersion `sepBy1` string ", ")
+pPackage = 
+    Package <$> (string "* " *> many1 (alphaNum <|> char '-'))
+            <*> (try nodef <|> withdef)
+            <*> skipOr anyChar (string "Installed versions: " *> pVersion `sepBy1` string ", ")
+    where
+        nodef   = Nothing <$ skipOr anyChar (string "Default available version: [ Not available from any configured repository ]")
+        withdef = Just    <$> skipOr anyChar (string "Default available version: " *> pVersion)
 
 pPackages :: Parser [Package]
 pPackages = parseSkipFinish eof anyChar pPackage <* eof
-
 
 
 main :: IO ()
@@ -66,5 +69,9 @@ main = interact $ \ s ->
         case parse pPackages "<stdin>" s of
             Left err -> error $ show err
             Right ps -> unlines $ map show
-                                $ filter (\ p -> availableVersion p > last (installedVersions p) )
+                                $ filter (\ p ->
+                                            case availableVersion p of
+                                                Nothing -> True
+                                                Just av -> av > last (installedVersions p)
+                                         )
                                   ps
