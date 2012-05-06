@@ -55,11 +55,13 @@ skipOr skip p = try p <|> (skip *> skipOr skip p)
 pPackage :: Parser Package
 pPackage = 
     Package <$> (string "* " *> many1 (alphaNum <|> char '-'))
-            <*> (try nodef <|> withdef)
+            <*> pOne
             <*> skipOr anyChar (string "Installed versions: " *> pVersion `sepBy1` string ", ")
     where
-        nodef   = Nothing <$ skipOr anyChar (string "Default available version: [ Not available from any configured repository ]")
-        withdef = Just    <$> skipOr anyChar (string "Default available version: " *> pVersion)
+        noneStr = "[ Not available from any configured repository ]"
+        pOne    = skipOr anyChar $ string "Default available version: "
+                  *> ( Nothing <$  string noneStr <|>
+                       Just    <$> pVersion )
 
 pPackages :: Parser [Package]
 pPackages = parseSkipFinish eof anyChar pPackage <* eof
