@@ -10,4 +10,16 @@ cabal-version:  >=1.2
 
 executable cabal-list-outdated
     main-is: Main.hs
-    build-depends: base, parsec == 3.*, mtl == 2.*
+    build-depends: base, parsec == 3.*, mtl == 2.*, split, safe
+    ghc-options:
+        -fwarn-incomplete-patterns
+        -fwarn-incomplete-uni-patterns
+        -fwarn-missing-signatures
+        -fwarn-name-shadowing
+        -fwarn-orphans
+        -fwarn-overlapping-patterns
+        -fwarn-tabs
+        -fwarn-unused-do-bind
+        -fwarn-unused-matches
+        -Wall
+        -rtsopts

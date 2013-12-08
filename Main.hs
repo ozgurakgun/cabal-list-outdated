@@ -1,9 +1,18 @@
 module Main where
 
 import Control.Applicative
-import Data.List ( intercalate )
-import Data.Char ( digitToInt )
 import Control.Monad.Identity ( Identity )
+import Data.Char ( digitToInt )
+import Data.Function
+import Data.List
+import Data.Maybe
+import Data.Ord
+import System.Environment ( getArgs )
+
+import Safe ( readNote )
+
+import Data.List.Split
+
 import Text.Parsec ( ParsecT, alphaNum, digit, char, string
                    , anyChar, eof
                    , many1, sepBy1
@@ -38,11 +47,24 @@ data Package = Package { name :: String
                        , availableVersion :: Maybe Version
                        , installedVersions :: [Version]
                        }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
-instance Show Package where
-    show (Package _ Nothing  _ ) = error "showing a Package with availableVersion = Nothing"
-    show (Package n (Just a) is) = n ++ ": version " ++ show a ++ " is available. You have " ++ show is ++ "."
+combinePkg :: [Package] -> [Package]
+combinePkg =
+    map grp .
+    groupBy ((==) `on` name) .
+    sortBy (comparing name)
+    where
+        grp :: [Package] -> Package
+        grp [] = error "empty group"
+        grp ps@(Package{name=n}:_) =
+            Package n
+                    (listToMaybe $ mapMaybe availableVersion ps)
+                    (nub $ sort $ concatMap installedVersions ps)
+
+showP :: Package -> String
+showP (Package n Nothing  is) = n ++ ": a new version might be available. You have " ++ show is ++ "."
+showP (Package n (Just a) is) = n ++ ": version " ++ show a ++ " is available. You have " ++ show is ++ "."
 
 parseSkipFinish :: Parser f -> Parser s -> Parser a -> Parser [a]
 parseSkipFinish f s a =  (f *> return [])
@@ -67,14 +89,47 @@ pPackages :: Parser [Package]
 pPackages = parseSkipFinish eof anyChar pPackage <* eof
 
 
+pGhcPkgList :: String -> Maybe Package
+pGhcPkgList = helper . strip
+    where
+        helper "" = Nothing
+        helper ('/':_) = Nothing
+        helper xs =
+            let
+                parts   = splitOn "-" xs
+                pkgname = init parts
+                pkgvers = map (\ s -> readNote (show s) s) $ splitOn "." $ last parts
+            in
+                Just $ Package (intercalate "-" pkgname) Nothing [Version pkgvers]
+
+strip :: String -> String
+strip = reverse . stripL . reverse . stripL
+    where
+        stripL (ch:xs) | ch `elem` " ()" = stripL xs
+        stripL xs = xs
+
+
 main :: IO ()
-main = interact $ \ s ->
-        case parse pPackages "<stdin>" s of
-            Left err -> error $ show err
-            Right ps -> unlines $ map show
-                                $ filter (\ p ->
-                                            case availableVersion p of
-                                                Nothing -> False
-                                                Just av -> av > last (installedVersions p)
-                                         )
-                                  ps
+main = do
+    (a:b:_) <- getArgs
+    cabalListInstalled <- readFile a
+    ghcPkgList <- readFile b
+    case parse pPackages "<stdin>" cabalListInstalled of
+        Left err -> error $ show err
+        Right ps -> do
+            let
+                fromCabalList = ps
+                fromGhcPkgList = mapMaybe pGhcPkgList (lines ghcPkgList)
+                allPackages = combinePkg $ fromCabalList ++ fromGhcPkgList
+            -- putStrLn $ unlines $ map show fromCabalList
+            -- putStrLn $ unlines $ map show fromGhcPkgList
+            putStrLn $ unlines $ map showP $
+                flip filter allPackages $ \ p ->
+                    case availableVersion p of
+                        Nothing -> False
+                        Just av -> av > last (installedVersions p)
+            putStrLn $ unlines $
+                "A new version might be availble for the following packages too:" :
+                map (("   " ++) . name) (filter (isNothing . availableVersion) allPackages)
+
+
